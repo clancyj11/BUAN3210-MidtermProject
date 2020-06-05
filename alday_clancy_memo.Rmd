@@ -1,0 +1,46 @@
+---
+title: "Office Mate Memo"
+output: html_document
+---
+
+#### **To: Quian Xu** 
+
+#### **From: Dani Alday, Joey Clancy**
+
+#### **Date: 5/13/20**
+
+#### **RE: Regarding Profitability for Office Mate**
+
+***
+
+```{r include = FALSE}
+knitr :: opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+```
+
+```{r}
+# Course: Communicating Data
+# Purpose: Communicate findings regarding an increase in profit and overall efficiency of Office Mate's online services
+# Date: 5/13/20
+# Author: Dani Alday, Joey Clancy
+```
+
+Over the last decade, online shopping has overtaken general merchandise sales according to the US census bureau. Business practices that increased profitability in traditional brick and mortar shops may not be the most lucrative strategy in the digital markets. In a dataset of product sales between 2012 and 2015, we analyzed several variables including profit, revenue, discount levels, ship times, order dates, and others. We have concluded that the use of discounts should be applied more strategically. Our key findings were related to discount percentages and how much revenue and profit was brought in at each percentage. We found that most discounts above 20% brought in dramatically less revenue, and in most cases, negative profits (losses). Our analyses could provide a competitive edge over Amazon and other retailers. The corresponding suggestions to management and more detailed analyses are available below:
+
+## Average Profit by Discount Availability: 
+
+![](plot2.jpg)
+
+The graphs above are two visualizations of the same idea. We compared analyzed profit when discounts were given and not given in the top graph. We included a horizontal line that denotes the breakeven point (cost = revenue) for profit. Here, we see that if no discounts are given, profits will always be positive, with the highest profit at about \$300,000. However, when discounts are given, we see a range where profits could be as high as $100,000 or as low as -\$150,000. We did an additional breakdown in the second graph of how the percentage of discounts affect profits. This is shown in our second graph. When a discount is 20% or lower, we are more likely to have a positive profit, however when we increase discounts, our profits decrease. The lowest profit occurs when discounts are about 70%. With this finding, we recommend that for pure profitability, we should have discounts of less than 20%. However, we understand that discounts are a strategic tool to draw in new customers and increase revenue. This leads us to our second finding.
+
+## Subcategories and Average Revenue by Discount Percentages:
+![](plot1.jpg)
+
+The above graph shows the average revenue of our subcategory products and it is further separated by percentages of discounts. The graph also displays data where products containing discounts below 30% are not included. In our first finding, we recommended keeping discounts of 20% or less. Because of that recommendation, for this graph, we decided to look at the impact of discounts above 20%. Though we recommended that discounts are not given above 30%, we aimed to provide some options should you decide to keep the discounts. The products where discounts are above 50% are shown to have significantly less revenue than products where discounts are below 50%. This is seen where Tables are discounted below 50% yet have an average revenue of about \$60,000. However, Furnishings have discounts of over 50% but bring in revenue of less than \$10,000. Though, traditionally, higher discounts have increased sales volume, however, in the digital market, that may not be the case. If discounts are used to attract consumers, we suggest keeping discounts on Tables and Machines as they still have high revenues. In the case of Furnishings and Appliances, we would suggest removing the discounts. However, if removing the discounts significantly reduces sales on these products, we recommend removing the products entirely because Office Mate would incur losses on these products. 
+
+After closely examining all the data and running many tests, we found that our results have a large and reliable impact (practical and statistically significant) on profitability. In short, our recommendations to increase profitability of Office Mate’s online services include removing discounts higher than 20%, and only keeping discounts that are higher if the resulting revenue is justified. We feel these strategies will create an exceptional balance between higher profits and attracting new customers to Office Mate. If you would like more information on these findings and our analyses, please contact us at analystInterns@OfficeMate.com.  
+
+Best regards,
+
+Dani Alday and Joey Clancy 
+

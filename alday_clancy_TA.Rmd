@@ -1,0 +1,1382 @@
+---
+title: "Midterm Project TA"
+author: Dani Alday, Joey Clancy
+output: 
+  html_document:
+    code_download: true
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+# Project Goal
+The goal of this project is to understand the transactions of the Office Mate online store. We will examine several variables such as revenue and profits and their relationship to product variables in order to improve profitability. At the end of the project, we will provide two recommendations in a memo form for Quian Xu. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r code-header, echo = FALSE}
+# Course: Communicating Data
+# Purpose:
+# Due Date: May 13, 2020
+# Author: Dani Alday, Joey Clancy
+```
+
+```{r clear-environment, echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE))
+
+# Clear environmet of packages
+if (is.null(sessionInfo()$otherPkgs) == FALSE) lapply(paste("package:", names(sessionInfo()$otherPkgs), sep = ""), detach, character.only = TRUE, unload = TRUE)
+```
+
+# Data Preprocessing
+```{r load-packages, message=FALSE, warning=FALSE}
+# Load all necessary packages below
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(patchwork)
+library(kableExtra)
+library(forcats)
+library(colorspace)
+library(gridExtra)
+```
+
+```{r sci-notation}
+# Remove scientific notation
+options(scipen = 999)
+```
+
+```{r data-load}
+# Load the data
+officeMate <- read.csv("mtp_off_mate.csv", header = TRUE)
+```
+
+```{r}
+# Create cost column
+officeMate <- cbind(officeMate, Cost = officeMate$Revenue - officeMate$Profit)
+```
+
+```{r}
+# Convert necessary variables to factors
+names <- c("Ship.Mode", "City", "State", "Region", "Segment", "Category", "Sub.Category", "Quantity")
+officeMate[names] <- lapply(officeMate[names], factor)
+```
+
+```{r}
+# Convert dates to date type
+officeMate$Order.Date <- mdy(officeMate$Order.Date)
+officeMate$Ship.Date <- mdy(officeMate$Ship.Date)
+
+# Create shipping time variable
+officeMate <- cbind(officeMate, shipTime = officeMate$Ship.Date - officeMate$Order.Date)
+officeMate$shipTime <- as.numeric(officeMate$shipTime, units = "days")
+```
+
+# Univariate Non-Graphical Analysis
+```{r}
+# Return the first few rows of data
+head(officeMate)
+```
+
+**Comments**
+
+- Data seems to be tidy
+
+     - no duplicate columns 
+     - each row is an observation of a specific product from an order 
+     - OrderID and CustomerID are not unique 
+
+```{r structure}
+# Showing the type of variables in our data set
+str(officeMate)
+```
+
+**Comments** 
+
+- Data consists of numerics and integers 
+- Some changes should be made to the set 
+
+    - Some variables need to be converted to factor variables
+    - Date columns needs to be converted to proper type
+    - Added a cost column to analyze 
+
+```{r desc-stats}
+# Getting a summary of our variables
+summary(officeMate)
+```
+
+**Comments**
+
+- Data was taken over the course of four years
+- Most customers use the standard class shipping, same day shipping is not popular
+- NYC has the most orders but California state has the most orders 
+- Not too much variance in the region
+- Consumer products are the most popular 
+- In revenue, Mean is larger than Median, showing a right skew 
+
+**Questions**
+
+- How would grouping the data change the figures? 
+- Some factor levels are too large, how could we better group them? 
+- What is the relationship between Revenue and Discount? 
+
+
+# Univariate Graphical Analysis
+## Numeric Variables
+
+**Function for histogram-boxplot combination**
+```{r histBox-function}
+# Creating a function to plot histogram and box plot at the same time
+histPlusBox <- function(data, vbl, binNum) {
+  histogram <- ggplot(data = data, mapping = aes(x = {{ vbl }})) +
+    geom_histogram(bins = binNum)
+
+  boxplot <- ggplot(data = data, mapping = aes(x = 0)) +
+    geom_boxplot(mapping = aes(y = {{ vbl }})) +
+    coord_flip()
+
+  histogram + boxplot
+}
+```
+
+### Revenue
+```{r revenue-histBox}
+# histogram of revenue
+histPlusBox(officeMate, Revenue, 30)
+```
+
+**Comments**
+
+- Data is very centered with a right skew 
+- Many outliers, causing a larger mean to median 
+
+
+### Discount
+```{r discount-histBox}
+# histogram of discount
+histPlusBox(officeMate, Discount, 30)
+```
+
+**Comments**
+
+- Data seems unbalanced
+- There is less occurences of discounts, if given, discounts are usually 20% 
+
+
+### Profit
+```{r profit-histBox}
+# histogram of profit
+histPlusBox(officeMate, Profit, 30)
+```
+
+**Comments**
+
+- Profit seems to be symmetrical, with both positive and negative outliers
+
+**Questions**
+
+- How would we better visualize profit?
+- Need to consider negative profits 
+
+### Cost
+```{r cost-histBox}
+# histogram of Cost
+histPlusBox(officeMate, Cost, 30)
+```
+
+**Comments**
+
+- Very positively skewed 
+- Created just to visualize/use later? 
+
+## Categorical and Factor Variables
+### Ship.Mode
+```{r SM-count}
+# Bar graph of ship mode
+officeMate %>%
+  ggplot(mapping = aes(x = Ship.Mode)) +
+  geom_bar()
+```
+
+**Comments**
+
+- Most customers use the Standard class shipping mode, followed by second class and first class 
+- There is not a large difference between second and first class 
+
+**Questions** 
+
+- What could cause standard class to be the most popular mode? 
+- What other variables may factor into which class is selected?
+- Do some regions prefer certain classes? 
+
+### City
+```{r city-count}
+# Bar Graph of cities
+# Too many cities to extract any significant meaning
+officeMate %>%
+  ggplot(mapping = aes(x = City)) +
+  geom_bar()
+```
+
+**Comments**
+
+- Graph would have to be edited to be relevant 
+
+### State
+```{r state-count}
+# Bar Graph of states
+officeMate %>%
+  group_by(State) %>%
+  summarize(count_state = n()) %>%
+  ggplot(mapping = aes(x = reorder(State, count_state), y = count_state)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+```
+
+**Comments**
+
+- California has the largest count of customers, followed by New York and Texas 
+- A single region of the country does not stand out in being the largest or smallest consumer 
+
+**Questions** 
+
+- Do larger customers receive larger discounts? 
+- How would you attract smaller customers? 
+- Need to be more selective about which data to show 
+
+### Region
+```{r region-count}
+# Bar graph of Region
+officeMate %>%
+  ggplot(mapping = aes(x = Region)) +
+  geom_bar()
+```
+
+**Comments**
+
+- The West is the largest customer, probably due to California as seen above 
+- The South is the smallest customer  
+
+**Questions**
+
+- What would increase sales in the South? 
+- Does the data differ when revenue/profit is considered? 
+
+### Segment
+```{r segment-count}
+# Bar graph of segment
+officeMate %>%
+  ggplot(mapping = aes(x = Segment)) +
+  geom_bar()
+```
+
+**Comments**
+
+- Consumer products have the most sales, followed by corporate and home office 
+ 
+**Question**
+
+- What could increase corporate sales? 
+
+    - Do consumer products have more discounts? 
+
+### Category
+```{r category-count}
+# bar graph of category
+officeMate %>%
+  ggplot(mapping = aes(x = Category)) +
+  geom_bar()
+```
+
+**Comments**
+
+- Office supplies have the most sales followed by furniture and technology
+- Furniture and technology are almost equally sold 
+
+**Questions** 
+
+- How would grouping category and segment display different results? 
+
+###Sub.Category
+```{r subCat-count}
+# Bar graph of subcategories
+officeMate %>%
+  group_by(Sub.Category) %>%
+  summarize(count_cat = n()) %>%
+  ggplot(mapping = aes(x = reorder(Sub.Category, count_cat), y = count_cat)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+```
+
+**Comments**
+
+- Binders are the most popular item sold, followed by paper and furnishings 
+
+**Questions**
+
+- How would discounts affect the items sold? 
+- Does revenue/profit show different results?
+
+### Quantity
+```{r quant-count}
+# Bar graph of quantity
+officeMate %>%
+  ggplot(mapping = aes(x = Quantity)) +
+  geom_bar()
+```
+
+**Comments**
+
+- Most customers buy 2 or 3 units of items
+- Data is very positively skewed 
+- Data seems to be grouped, (2,3), (4,5), (6,7) (8,9) 
+
+### Order.Date
+```{r orderDate-dist}
+# Faceted graph of order dates over the years
+officeMate %>%
+  group_by(Order.Date) %>%
+  summarize(count = n()) %>%
+  ggplot(mapping = aes(x = reorder(months(Order.Date), count), y = count)) +
+  geom_col() +
+  facet_wrap(~ year(Order.Date)) +
+  coord_flip()
+```
+
+**Comments**
+
+- Most sales are shown in 2015 
+
+**Questions**
+
+- Could we visualize this on one graph? 
+- Which year was the most profitable?
+
+### Ship.Date
+```{r shipDate-dist}
+# Faceted graph of shipping dates over the years
+officeMate %>%
+  group_by(Ship.Date) %>%
+  summarize(count = n()) %>%
+  ggplot(mapping = aes(x = reorder(months(Ship.Date), count), y = count)) +
+  geom_col() +
+  facet_wrap(~ year(Ship.Date)) +
+  coord_flip()
+```
+
+### Ship Time
+```{r}
+# Faceted graphs of shiptime over the years
+officeMate %>%
+  group_by(shipTime, Ship.Date) %>%
+  summarize(count = n()) %>%
+  ggplot(mapping = aes(x = shipTime, count), y = count) +
+  geom_col() +
+  facet_wrap(~ year(Ship.Date)) +
+  labs(x = "Ship Time (days)", y = "Count")
+```
+
+**Comments**
+
+- Average shipping date is around 4 days 
+- Shipping time is consistent almost across all years, except 2016
+
+    - 2016 may have less data 
+
+# Multivariate non-graphical analysis
+
+## Numeric
+
+### Correlation Table
+```{r cor-table}
+# Correlation table of quantitative variables
+corTab <- officeMate %>%
+  select_if(is.numeric) %>% # Use to select just the numeric variables
+  cor() %>%
+  round(2)
+kable(corTab)
+```
+
+**Comments** 
+
+- Very little correlation across the board 
+- High correlation between cost and revenvue 
+
+    - Cost was created using revenue, need to take that into account 
+    
+- Revenue and profit also have a higher correlation, likely that profit was generated from Revenue 
+
+# Multivariate Graphical Analysis
+## Quantitatives
+### Cost ~ Revenue
+```{r message = FALSE}
+# Scatterplot of cost and revenue, should be positive
+officeMate %>%
+  ggplot(mapping = aes(x = Cost / 1000, y = Revenue / 1000)) + # divide cost and revenue for clarity
+  geom_point(position = "jitter") +
+  geom_smooth(method = lm, se = FALSE) +
+  theme_classic() +
+  labs(title = "Cost vs. Revenue", x = "Cost (thousands)", y = "Revenue (thousands)")
+```
+
+**Comments**
+
+- As expected, positive relationship between Revenue and cost 
+- Slope is moderate 
+- symmetrical around the trend line 
+
+### Cost ~ Discount
+```{r}
+# Scatterplot of costs and discounts
+officeMate %>%
+  ggplot(mapping = aes(x = Cost / 1000, y = Discount)) + # divide cost for clarity
+  geom_point() +
+  theme_classic() +
+  labs(title = "Cost vs. Discount", subtitle = "Not many discounts beyond the $10,000 amount.", x = "Cost (thousands)")
+```
+
+### Discount ~ Revenue
+```{r}
+# Using mean as a measure of central tendency because it is much lower than the median suggesting that the data is skewed.
+officeMate %>%
+  group_by(Discount) %>%
+  summarize(meanRev = mean(Revenue)) %>% # using mean revenue
+  ggplot(mapping = aes(x = Discount, y = meanRev)) +
+  geom_line() +
+  theme_classic() +
+  labs(title = "Mean Revenue by Discount", x = "Discount", y = "Mean Revenue")
+```
+
+**Comments**
+
+- Unsurprisingly low revenue with higher discounts 
+- 20% discounts have less revenue 
+- Higher revenue between 0-20% and 30-50% 
+
+**Questions**
+
+- Between 30% and 50% seems to be the sweetspot as far as discounts are concerned
+- Does higher revenue mean higher profit in this case? 
+
+```{r}
+# Using mean as a measure of central tendency because it is much lower than the median suggesting that the data is skewed.
+officeMate %>%
+  group_by(Discount) %>%
+  summarize(medProf = median(Profit)) %>% # using median profit
+  ggplot(mapping = aes(x = Discount, y = medProf)) +
+  geom_line() +
+  geom_hline(yintercept = 0) + # adding a horizontal line to show breakeven point
+  theme_classic() +
+  labs(title = "Median Profit by Discount", x = "Discount", y = "Median Profit")
+```
+
+**Comments** 
+
+- Higher revenue does not mean higher discount 
+- Median profits are positive only when discount is 20% or lower 
+
+**Questions** 
+
+- How do other factors impact the profit/discount model 
+
+### Revenue ~ Profit
+```{r}
+# Creating scatterplot to plot revenue and profit
+officeMate %>%
+  ggplot(mapping = aes(x = Revenue, y = Profit)) +
+  geom_point() +
+  geom_smooth(method = lm, se = FALSE) +
+  theme_classic() +
+  labs(title = "Revenue vs. Profit", subtitle = "Trendline shows that as revenue increases, profit also increases.")
+```
+
+**Comments**
+
+- Seems to be a weak correlations between these two variables
+
+## Categorical Variables
+
+### Category ~ Average Discount
+```{r}
+# Graphing categories by the average discount
+officeMate %>%
+  filter(Discount != 0) %>% # using only discount
+  group_by(Category) %>%
+  summarize(meanDisc = mean(Discount)) %>% # using means
+  ggplot(mapping = aes(x = reorder(Category, meanDisc), y = meanDisc)) +
+  geom_col() +
+  theme_classic() +
+  labs(title = "Category vs. Mean Discount", subtitle = "Office supplies receive the highest average discounts.", x = "Category", y = "Mean Discount ($)")
+```
+
+**Comments**
+
+- Higher discounts in office supplies 
+- Indicates that office supplies may also have lower profits 
+
+**Questions** 
+
+- Is there a similar trend among the subcategories? 
+
+### Subcategory ~ Discount Count
+```{r}
+# Graph of Subcategory by the Discount counts
+officeMate %>%
+  filter(Discount != 0) %>% # using only discounts
+  group_by(Sub.Category, Category) %>%
+  summarize(count_dis = n()) %>% # creating a count
+  ggplot(mapping = aes(x = reorder(Sub.Category, count_dis), y = count_dis, fill = Category)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Subcategory vs. Discount Count", subtitle = "Binders is the subcategory that offer the most discounts.", x = "Subcategory", y = "Discount Count")
+```
+
+**Comments**
+
+- Suprisingly less discounts given on unpopular items 
+- Discount count may be switched with profit/revenue for more information 
+- Confirms more discounts given in office supplies 
+
+### Discount Factor Counts
+```{r reference}
+# Factoring Discount to see the summary
+disc_factor <- factor(officeMate$Discount)
+summary(disc_factor)
+```
+
+### Ship Time ~ Ship Mode
+```{r message = FALSE}
+# Showing ship mode breakdown by days
+# Allows us to see how long ship modes really take
+officeMate %>%
+  ggplot(mapping = aes(x = shipTime, fill = Ship.Mode)) +
+  geom_histogram() +
+  theme_classic() +
+  labs(title = "Ship Time vs. Count", subtitle = "A shipping time of four days is most frequent.", x = "Ship time (days)", y = "Count")
+```
+
+**Comments**
+
+- Data makes sense
+- Standard class does not have ship times below the four day mark.
+- Little difference between first class and second class 
+- Standard class could be popular because it is likely to be within 5 business days
+
+**Questions**
+
+- Difference between first and second class?
+- One would think that first class has higher amounts of lower ship times, right?
+    
+    - Compared to second class
+
+### Ship.Mode ~ Median Revenue
+```{r}
+# Showing ship mode breakdown by Region and Median Rev
+officeMate %>%
+  group_by(Ship.Mode, Revenue, Region) %>%
+  summarize(medRev = median(Revenue)) %>% # using median revenue
+  ggplot(mapping = aes(x = reorder(Ship.Mode, medRev), y = medRev / 1000, fill = Region)) +
+  geom_col() +
+  theme_classic() +
+  labs(title = "Ship Mode vs. Median Revenue", subtitle = "Standard Class brings in highest median revenue.", x = "Ship Mode", y = "Median Revenue (thousands)")
+```
+
+**Comments**
+
+- Proportion of regions across ship modes seems consistent 
+- Overall, standard class is preferred across all regions 
+
+### Time ~ Mean Ship Time
+```{r}
+# Creating two graphs to view average shipping times by region and segment over time
+grid.arrange(
+  officeMate %>%
+    mutate(yr = year(Order.Date)) %>%
+    group_by(yr, Region) %>%
+    summarise(mean_st = mean(shipTime)) %>% # using mean
+    ggplot(aes(x = yr, y = mean_st, group = Region, color = Region)) +
+    geom_line() +
+    theme_classic() +
+    labs(title = " Mean Ship Time from 2012 - 2015 by Region", x = "Year", y = "Mean Ship Time"),
+
+  officeMate %>%
+    mutate(yr = year(Order.Date)) %>%
+    group_by(yr, Segment) %>%
+    summarise(mean_st = mean(shipTime)) %>% # using mean
+    ggplot(aes(x = yr, y = mean_st, group = Segment, color = Segment)) +
+    geom_line() +
+    theme_classic() +
+    labs(title = " Mean Ship Time from 2012 - 2015 by Segment", x = "Year", y = "Mean Ship Time")
+)
+```
+
+**Comments**
+
+- South has an almost inverse trend compared to other regions
+
+    - Large spike in ship time in 2013, large decrease in 2014 
+    - East follows a similar pattern 
+    
+- West and Central have similar trends 
+
+    - Lower ship time in 2013, spike in 2014, and now lower ship times 
+    
+- Corporate has the largest mean ship time but is decreasing 
+- Consumer ship time is slightly increasing after 2014 after a large decrease 
+- Home office has an inverse trend to consumer ship times 
+
+### Segment ~ Region
+```{r}
+# Creating a graph to view Region breakdown by segment
+officeMate %>%
+  group_by(Region, Segment) %>%
+  summarize(count1 = n()) %>%
+  ggplot(mapping = aes(x = Segment, y = count1, fill = Region)) +
+  geom_col() +
+  theme_classic() +
+  labs(title = "Segment vs. Region", subtitle = "Consumer segment has the highest count by a lot.", y = "Segment Count")
+```
+
+**Comments**
+
+- Proportions of regions to segments is steady across each segment 
+- Data is not surprising 
+
+### Weekday ~ Orders
+```{r warning=FALSE}
+day_week <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday") # creating a vector to create days
+
+# Creating graph to view orders by day
+officeMate %>%
+  mutate(orderDay = weekdays(Order.Date)) %>%
+  mutate(orderDay = fct_relevel(orderDay, levels = day_week)) %>% # refactoring days
+  ggplot(mapping = aes(x = orderDay, fill = Segment)) + # visualize by segment
+  geom_bar() +
+  theme_classic() +
+  labs(title = "Weekday vs. Count", subtitle = "Saturday and Wednesday have the highest counts.", x = "Weekday", y = "Count")
+```
+
+**Comments** 
+
+- Surprised at the balance between Tuesday to Saturday
+- Lowest amount of orders monday 
+- Proportion of segments matches their respective counts as seen in earlier graphs 
+
+**Questions**
+
+- Why is Monday so low?
+
+### Year ~ Median Profit
+```{r}
+# Profit data is skewed, so we used median instead of mean
+officeMate %>%
+  mutate(yr = year(Order.Date)) %>%
+  group_by(Segment, yr) %>%
+  summarise(med_prof = median(Profit)) %>% # using median profit
+  ggplot(mapping = aes(x = yr, y = med_prof, color = Segment)) + # separating by segment
+  geom_line() +
+  theme_classic() +
+  labs(title = "Median Profit Over Time", subtitle = "Home office sees a dramatic decrease from 2013 - 2014.", x = "Year", y = "Median Profit")
+```
+
+**Comments**
+
+- Decreasing consumer profit after 2014 despite being the largest segment 
+- Drastic decrease in median profit for home office from 2013-2014 
+
+**Questions** 
+
+- Does the revenue trend over time look similar? 
+
+    - Does the decrease in home office profit reflect in revenue? 
+
+### Total Revenue/Profit ~ State
+```{r}
+graph1 <- officeMate %>%
+  group_by(State) %>%
+  summarize(totalRev = sum(Revenue)) %>%
+  top_n(10, totalRev) %>% # using top 10 to show highest revenue states
+  ggplot(mapping = aes(x = reorder(State, totalRev), y = totalRev / 1000)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Top 10 Total Revenue by State", subtitle = "California and New York bring in the most total revenue.", x = "State", y = "Total Revenue (thousands)")
+
+graph2 <- officeMate %>%
+  group_by(State) %>%
+  summarize(totalProf = sum(Profit)) %>%
+  top_n(10, totalProf) %>% # using top 10 to show highest revenue states
+  ggplot(mapping = aes(x = reorder(State, totalProf), y = totalProf / 1000)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Top 10 Total Profit by State", subtitle = "California and New York have the highest profits.", x = "State", y = "Total Profit (thousands)")
+
+graph1 + graph2
+```
+
+**Comments** 
+
+- Not too much difference in the revenue and profit
+- Differences could lie in higher costs for certain states 
+
+**Questions** 
+
+- Does NYC have a high cost? 
+
+### Total Cost ~ State
+```{r}
+# Cost breakdown per top ten states
+officeMate %>%
+  group_by(State) %>%
+  summarize(totalCost = sum(Cost)) %>%
+  top_n(10, totalCost) %>% # using top 10 to show highest cost states
+  ggplot(mapping = aes(x = reorder(State, totalCost), y = totalCost / 1000)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Top 10 Total Cost by State", subtitle = "California and New York have the highest Costs", x = "State", y = "Total Costs (thousands)")
+```
+
+**Comments** 
+
+- NY does have a high cost but not more than California
+- Washington does have a low cost, reflecting in the profit 
+
+### Total Revenue/Profit ~ City
+```{r}
+# Top ten total revenue and city per city
+cityGraph <- officeMate %>%
+  group_by(City) %>%
+  summarize(totalRev = sum(Revenue)) %>% # using total revenue
+  top_n(10, totalRev) %>% # using top 10 to show highest revenue cities
+  ggplot(mapping = aes(x = reorder(City, totalRev), y = totalRev)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Top 10 Total Revenue Per City", subtitle = "New York City and LA are the two cities that pull in the most revenue.", x = "City", y = "Total Revenue")
+
+cityGraph2 <- officeMate %>%
+  group_by(City) %>%
+  summarize(totalProf = sum(Profit)) %>% # using total profits
+  top_n(10, totalProf) %>% # using top 10 to show highest profits cities
+  ggplot(mapping = aes(x = reorder(City, totalProf), y = totalProf / 1000)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Top 10 Total Profit by City", subtitle = "New York City significantly out performs the other nine locations.", x = "City", y = "Total Profit (thousands)")
+
+cityGraph + cityGraph2
+```
+
+**Comments**
+
+- NYC has a larger revenue than LA, probably contributing to the state's large revenue 
+- LA has a lower profit compared to their revenue, perhaps from a very high cost 
+
+**Questions** 
+
+- How does NYC and LA's costs reflect their revenue and profit? 
+
+### Total Cost ~ City
+```{r}
+officeMate %>%
+  group_by(City) %>%
+  summarize(totalCost = sum(Cost)) %>%
+  top_n(10, totalCost) %>% # using top 10 to show highest cost cities
+  ggplot(mapping = aes(x = reorder(City, totalCost), y = totalCost / 1000)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Top 10 Total Costs by City", subtitle = "NYC has a higher cost than LA.", x = "City", y = "Total Costs (thousands)")
+```
+
+**Comments** 
+
+- Confirms that NYC has a high cost, and even higher than LA 
+
+### Region ~ Revenue Total
+```{r}
+# Region and total revenue
+officeMate %>%
+  group_by(Region, Revenue) %>%
+  summarise(sumRev = sum(Revenue)) %>%
+  ggplot(mapping = aes(x = Region, y = sumRev / 1000)) + # using revenue, dividing for clarity
+  geom_col() +
+  theme_classic() +
+  labs(title = "Region vs. Total Revenue", subtitle = "The western region brings in the highest total revenue, with the East being a close second.", y = "Total Revenue (thousands)")
+```
+
+**Comments**
+
+- East and West have almost the same revenue total
+
+    - Indicates that the West may have the most orders, but East buys more expensive items 
+
+### Region ~ Discount Count
+```{r}
+# Bar graph to show count of discounts among the different regions
+officeMate %>%
+  filter(Discount != 0) %>% # using only discounts
+  group_by(Discount, Region) %>%
+  summarise(count_dis = n()) %>% # creating a count
+  ggplot(mapping = aes(x = Region, y = count_dis)) +
+  geom_col() +
+  theme_classic() +
+  labs(title = "Region vs. Discount Count", subtitle = "The central region offers the most discounts, but not by a wide margian.", y = "Discount Count")
+```
+
+**Comments**
+
+- Central region offers the most discounts but East provides most revenue, and West is largest consumer 
+
+    - Central's large discount count may affect their profit 
+
+### Region ~ Profit 
+```{r}
+# Bar graph of profit and region
+officeMate %>%
+  group_by(Region) %>%
+  summarize(totalProf = sum(Profit)) %>% # using total profits
+  ggplot(mapping = aes(x = reorder(Region, totalProf), y = totalProf)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Profit by Region", subtitle = "West has highest Profit", y = "Total Profit (hundred thousands)")
+```
+
+**Comments**
+
+- South has a higher profit than Central, despite being lowest in Revenue 
+- Confirms that the larger discount count affects the revenue 
+
+**Questions** 
+
+- Does a proportion of discount confirm that Central has more discounts? 
+
+### Average Discount ~ Sub.Category
+```{r}
+# Mean discount per subcategory colored by category
+# Shows distribution of discounts as well as the amounts
+officeMate %>%
+  filter(Discount != 0) %>% # using only discounts
+  group_by(Sub.Category, Category) %>%
+  summarize(meanDisc = mean(Discount)) %>%
+  ggplot(mapping = aes(x = reorder(Sub.Category, meanDisc), y = meanDisc, fill = Category)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Mean Discount per Subcategory", subtitle = "Binders offer the highest average discounts.", x = "Subcategory", y = "Mean Discount ($)")
+```
+**Comments** 
+
+- The subcategories with higher discounts may have lower profits
+
+    - Graph in the detailed EDA 
+
+### Revenue over time 
+```{r}
+# Revenue over time, revenue in hundred thousands
+officeMate %>%
+  mutate(yr = year(Order.Date)) %>%
+  group_by(yr) %>%
+  summarise(sumRev = sum(Revenue)) %>% # using sum revenue
+  ggplot(mapping = aes(x = yr, y = sumRev / 100000)) +
+  geom_line() +
+  theme_classic() +
+  labs(title = "Total Revenue Over Time", subtitle = "", x = "Year", y = "Total Revenue (hundred thousands)")
+```
+
+**Comments** 
+
+- Revenue increases after 2013
+- Better visualizes our earlier faceted graphs 
+
+# Detailed EDA
+## Questions
+
+- Does discount affect why Central Region have lower profits than South despite being a larger consumer? 
+- Do different ship times have different profits? 
+- Does the breakdown of segments differ between NYC and LA? Does it explain why NYC has higher profits? 
+- What is the relationship between Discounts and specific products? 
+
+### NYC-LA Profit ~ Segment
+```{r newYorkProfit}
+# Bar graph of City Profit (NY and LA)
+# Divided by segment
+nyProfit <- officeMate %>%
+  filter(City == "New York City") %>% # want to see only NYC
+  group_by(Segment) %>%
+  summarize(totalProf = sum(Profit)) %>% # using total profit
+  ggplot(mapping = aes(x = reorder(Segment, totalProf), y = totalProf)) +
+  geom_col() +
+  theme_classic() +
+  labs(title = "New York City Total Profit", subtitle = "Consumer segment pulls in highest profits.", x = "Segment", y = "Total Profit ($)")
+
+caliProfit <- officeMate %>%
+  filter(City == "Los Angeles") %>% # want to see only LA
+  group_by(Segment) %>%
+  summarize(totalProf = sum(Profit)) %>% # using total profit
+  ggplot(mapping = aes(x = reorder(Segment, totalProf), y = totalProf)) +
+  geom_col() +
+  theme_classic() +
+  labs(title = "Los Angeles Total Profit", subtitle = "Consumer segment pulls in highest profits.", x = "Segment", y = "Total Profit ($)")
+
+nyProfit + caliProfit
+```
+
+**Comments**
+
+- Despite NYC having higher profit, both cities have similar segment distributions
+- In NYC, the Home Office segment is larger than the Corporate segmant compared to LA
+- Both have very large consumer segments 
+
+### Region ~ Count ~ Discount
+```{r}
+# Proportion of discount to no discount for each region.
+officeMate %>%
+  mutate(DiscountTF = Discount != 0) %>% # using only discount
+  ggplot(mapping = aes(x = Region, fill = DiscountTF)) +
+  geom_bar(position = "fill") +
+  theme_classic() +
+  labs(title = "Proportional Fill of Discounts per Region", subtitle = "The Central region offers the most discounts.", y = "Proportion of Discounts (%)")
+```
+
+**Comments**
+
+- Confirms that central region has the most discounts proportionally 
+- Indicates that more discounts could lead to less profits 
+- Answers our question on Central region's relationship with discounts 
+
+### Region ~ Profit ~ Discount
+```{r}
+# Discount is present, bar graph for Regions
+y1 <- officeMate %>%
+  filter(Discount != 0) %>% # using only discount
+  ggplot(mapping = aes(x = Region, y = Profit)) +
+  geom_col() +
+  theme_classic() +
+  labs(title = "Region vs. Profit", subtitle = "When discounts are present, profits range widely between positive and negative values.")
+
+# Discount is absent, bar graph for Regions
+x1 <- officeMate %>%
+  filter(Discount == 0) %>% # using non discount
+  ggplot(mapping = aes(x = Region, y = Profit)) +
+  geom_col() +
+  theme_classic() +
+  labs(title = "Region vs. Profit", subtitle = "When discounts are not present, profits are always positive.")
+
+y1 + x1
+```
+
+**Comments** 
+
+- Displays the range of profits when there is a discount vs no discount 
+- Confirms that central region has the lowest profits and the most amount of discounts 
+- Further provides rationale for reducing the number of discounts when the previous graph is taken into account  
+
+### Year ~ Median Profit ~ Ship Time
+```{r}
+# Profit data is skewed, so we used median instead of mean
+officeMate$shipTimeFact <- as.factor(officeMate$shipTime)
+
+officeMate %>%
+  mutate(yr = year(Order.Date)) %>%
+  mutate(shipTimeFact = fct_recode(shipTimeFact, `0-1` = "0", `0-1` = "1", `2-3` = "2", `2-3` = "3", `4-5` = "4", `4-5` = "5", `6-7` = "6", `6-7` = "7")) %>% # refactoring shiptime for clarity
+  group_by(shipTimeFact, yr) %>%
+  summarise(med_prof = median(Profit)) %>% # using median profits
+  ggplot(mapping = aes(x = yr, y = med_prof, color = shipTimeFact)) +
+  geom_line() +
+  theme_classic() +
+  labs(title = "Median Profit by Ship Time", subtitle = "2-3 days shipping time generally has highest profits.", x = "Year", y = "Median Profit")
+```
+
+**Comments**
+
+- Median profit has decreased overtime despite Revenue increasing 
+- Shipping times between 2-5 days have a peak in 2013 whereas 0-1 day shipping peaks in 2014 
+- Because there are multiple ship times per ship mode factor, this could explain the similarities in trends 
+
+### Discount ~ Total Profit ~ Category
+```{r CATEGORY}
+# Scatterplot to see where profit becomes negative (at what discount level)
+officeMate %>%
+  filter(Discount > 0) %>%
+  group_by(Discount, Category) %>%
+  summarise(sumProf = sum(Profit)) %>%
+  ggplot(mapping = aes(x = Discount, y = sumProf, color = Category)) +
+  geom_point() +
+  geom_vline(xintercept = 0.3) + # adding a vertical line at .3, divides positive and negative
+  geom_hline(yintercept = 0) + # adding a horizontal breakeven point
+  theme_classic() +
+  labs(title = "Discount vs. Total Profit", subtitle = "Total profits are negative beyond discounts of 30%.", x = "Discount (%)", y = "Total Profit")
+```
+
+**Comments** 
+
+- Scatter plot of discount and cateory shows that some office supplies have the lowest profits and highest discounts 
+- Discounts of less than 30% have positive profits
+
+    - Relationship may need to be further analysed 
+ 
+### Discount ~ Profit ~ Subcategory
+```{r}
+# Scatterplot of discount levels and profit
+officeMate %>%
+  filter(Discount > 0) %>%
+  group_by(Discount, Sub.Category) %>%
+  summarise(sumProf = sum(Profit)) %>%
+  ggplot(mapping = aes(x = Discount, y = sumProf, color = Sub.Category)) +
+  geom_point(position = "jitter") +
+  geom_vline(xintercept = 0.3) + # adding a vertical line at .3, divides positive and negative profits
+  geom_hline(yintercept = 0) + # adding a horizontal breakeven point
+  theme_classic() +
+  labs(title = "Discount vs. Total Profit", subtitle = "Total profits are negative beyond discounts of 30%.", x = "Discount (%)", y = "Total Profit")
+```
+
+**Comments** 
+
+- See correlation test in statistical EDA
+- Same as the above graph but for sub category
+- Graph is too messy, overplotted
+
+    - A filter may be needed to pinpoint our exact finding 
+    - Focus on the lowest profits? 
+
+### Revenue ~ Subcategory || Discount Count ~ Subcategory
+```{r}
+# Creating graph of total revenue by sub category
+svg <- officeMate %>%
+  group_by(Revenue, Sub.Category) %>%
+  summarize(totalRev = sum(Revenue)) %>%
+  ggplot(mapping = aes(x = Sub.Category, y = totalRev / 100000)) + # using sums of revenue
+  geom_col() +
+  theme_classic() +
+  labs(title = "Total Revenue vs. Subcategory", x = "Subcategory", y = "Total Revenue (hundred thousands)") +
+  coord_flip()
+
+# Creating graph of discount count by sub category
+efj <- officeMate %>%
+  group_by(Discount, Sub.Category) %>%
+  summarize(countDis = n()) %>%
+  ggplot(mapping = aes(x = Sub.Category, y = countDis)) +
+  geom_col() +
+  theme_classic() +
+  labs(title = "Discount Count vs. Subcategory", x = "Subcategory", y = "Discount Count") +
+  coord_flip()
+
+svg + efj
+```
+
+**Comments** 
+
+- Side by side comparison 
+  
+    - Helps us see high revenue items that may have more discounts 
+    - Maybe keep high rev items if there are large enough profits? 
+
+### Revenue ~ Subcategory ~ Discount
+```{r message=FALSE}
+# Do discounts at higher rates bring in more customers and as a result more revenue?
+Discount_Factor <- as.factor(officeMate$Discount)
+
+officialMemoViz1 <- officeMate %>%
+  mutate(Discount_Factor = fct_recode(Discount_Factor, `0 - 30%` = "0", `0 - 30%` = "0.1", `0 - 30%` = "0.15", `0 - 30%` = "0.2", `0 - 30%` = "0.3", `30 - 50%` = "0.32", `30 - 50%` = "0.4", `30 - 50%` = "0.45", `30 - 50%` = "0.5", `51 - 80%` = "0.6", `51 - 80%` = "0.7", `51 - 80%` = "0.8")) %>% # refactoring discount levels
+  group_by(Revenue, Sub.Category, Discount_Factor, Discount) %>%
+  filter(Discount_Factor != "0 - 30%") %>% # filtering out 20% discounts
+  summarise(meanRev = mean(Revenue)) %>%
+  ggplot(mapping = aes(x = reorder(Sub.Category, Discount), y = meanRev / 10000, fill = Discount_Factor)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  labs(title = "Mean Revenue vs. Subcategory", subtitle = "Higher discounts do not necessarily mean more revenue.", x = "Subcategory", y = "Mean Revenue (ten thousands)")
+coord_flip()
+
+officialMemoViz1
+```
+
+**Comments** 
+
+- Filtered out discounts 20% and lower 
+- When compared with the previous graph, we see that appliances and furnishings are low reveneue items with high discounts 
+  
+    - We know that 50-80% items have negative profits 
+    
+- Phones and tables are high revenue items with lower percentage of discounts 
+
+### Profit ~ Subcategory
+```{r}
+# Median profit range for subcategories and categories
+g1 <- officeMate %>%
+  group_by(Sub.Category, Profit, Category) %>%
+  summarize(medProf = median(Profit)) %>%
+  ggplot(mapping = aes(x = Sub.Category, y = medProf / 10000)) + # using median profits
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  geom_hline(yintercept = 0) +
+  theme_classic() +
+  labs(title = "Median Profit vs. Subcategory", x = "Subcategory", y = "Median Profit (ten thousands)")
+
+g2 <- officeMate %>%
+  group_by(Profit, Category) %>%
+  summarize(medProf = median(Profit)) %>%
+  ggplot(mapping = aes(x = Category, y = medProf / 10000)) + # using median profits
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  geom_hline(yintercept = 0) +
+  theme_classic() +
+  labs(title = "Median Profit vs. Category", x = "Category", y = "Median Profit (ten thousands)")
+
+g1 / g2
+```
+
+**Comments** 
+
+- Another visual on breakdown of profit range 
+- Binders and machines have very large ranges of profits
+
+    - Profitability may improve with reducing discounts
+    - Reducing discounts may then reduce their revenue count 
+    - Wins/losses should be examined 
+
+- Furniture has the lowest profits amongst all categories 
+
+### Discount ~ Profit ~ True/False
+```{r}
+# Find distribution of profits when discount is given and when there is no discount
+memo1 <- officeMate %>%
+  select(Discount, Profit) %>%
+  mutate(Discount_TF = as.factor(ifelse(Discount > 0, "Discount", "No Discount"))) %>%
+  group_by(Discount, Profit) %>%
+  ggplot(mapping = aes(x = Discount_TF, y = Profit, fill = Discount_TF)) + # using median price
+  geom_col() +
+  theme_classic() +
+  labs(title = "Discount vs. Profit", subtitle = "Difference in profit range when discounts are offered versus when they're not.")
+
+memo1
+```
+
+**Comments** 
+
+- Profits without discounts are always positive, with a much higher maximum of 300,000 
+- Profits where a discount is offered has a range from about -150,000 to 100,000 
+
+    - Perhaps offering less discounts would have higher profit
+    - Would need to check the statistical significance of this 
+    - A breakdown of which discounts lead to lower profits may be beneficial 
+
+### Discount ~ Profit
+```{r}
+# Create second image for memo
+DiscProf2 <- officeMate %>%
+  mutate(profpos = ifelse(Profit >= 0, "pos", "neg")) %>% # refactoring profit
+  group_by(Discount) %>%
+  ggplot(mapping = aes(x = Discount, y = Profit / 100000, fill = profpos)) + # using median price
+  geom_bar(stat = "identity") +
+  geom_hline(yintercept = 0) +
+  theme_classic() +
+  labs(title = "Discount vs. Profit", subtitle = "The amount of positive profit decreases dramatically after 20% discount level.", y = "Profit (hundred thousands)")
+
+DiscProf1 <- officeMate %>%
+  select(Discount, Profit) %>%
+  mutate(Discount_TF = as.factor(ifelse(Discount > 0, "Discount", "No Discount"))) %>% # refactoring profit
+  group_by(Discount, Profit) %>%
+  ggplot(mapping = aes(x = Discount_TF, y = Profit / 100000, fill = Discount_TF)) + # using median price
+  geom_col() +
+  theme_classic() +
+  labs(title = "Discount vs. Profit", subtitle = "Difference in profit range when discounts are offered versus when they're not.", y = "Profit (hundred thousands)")
+
+officialMemoViz2 <- DiscProf1 / DiscProf2
+officialMemoViz2
+```
+
+**Comments**
+
+- Adding the second graph helps visualize which discounts lead to lower profits
+- We see the same pattern 
+  
+    - After 20% there are negative profits that outweight positive profits 
+    - No posiive profits at 30% and up 
+    - High profits at no discounts
+
+- High discount items may need to be reevaluated 
+
+# Statistical Analysis
+
+### Profit ~ Discount
+```{r}
+# Pairwise T Test to see relation between factor levels of discount and Revenue.
+pairwise.t.test(officeMate$Profit, as.factor(officeMate$Discount))
+```
+
+**Comments** 
+
+- This pairwise t-test shows the probability that profit differs per discount percentage
+
+- We can see that at a high confidence intervals, discounts at or below 20% are statistically different that discounts at higher percentages (70-80%).
+
+
+```{r}
+# 95% CI, get z-value for upper tail, use 0.975 since is one sided
+z <- qnorm(0.975)
+
+# Incorporate CI into bar graph of means
+officeMate %>%
+  group_by(Discount) %>%
+  summarise(
+    meanProf = mean(Profit), sd = sd(Profit),
+    n = n(), ci = z * sd / sqrt(n)
+  ) %>%
+  ggplot(aes(x = Discount, y = meanProf)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = meanProf - ci, ymax = meanProf + ci),
+    width = 0.03, size = 1, color = "light blue"
+  ) + # adding aesthetics to the confidence intervals
+  theme_classic() +
+  labs(title = "Bar Graph of Means", subtitle = "Lower discounts are statistically different in mean revenue when compared to higher level discounts.", x = "Discount Level", y = "Mean Profit")
+```
+
+**Results**
+
+- Our null hypothesis is that the mean profit for discounts below 20% are the same as discounts above 20%.
+
+- The above test, shows that at a 95% confidence interval we can say that discounts at or below 20% are statistically different from higher discounts in terms of average profit. 
+
+- This means that we reject the null hypothesis in favor of the alternative (mean profits differ above and below 20% discounts).
+
+### Revenue ~ Discount
+```{r}
+# Pairwise T Test to see relation between factor levels of discount on Revenue
+pairwise.t.test(officeMate$Revenue, as.factor(officeMate$Discount))
+```
+
+**Comments** 
+
+- The pairwise t-test shows the probability that the revenue is statistically different at each discount level.
+
+- We can see that there is some variation across all discount levels, however, the zero discount level has the most probable differences when compared to other levels
+
+```{r}
+# 95% CI, get z-value for upper tail, use 0.975 since is one sided
+z <- qnorm(0.975)
+
+# Incorporate CI into bar graph of means
+officeMate %>%
+  group_by(Discount) %>%
+  summarise(
+    meanRev = mean(Revenue), sd = sd(Revenue),
+    n = n(), ci = z * sd / sqrt(n)
+  ) %>%
+  ggplot(aes(x = Discount, y = meanRev)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = meanRev - ci, ymax = meanRev + ci),
+    width = 0.03, size = 1, color = "light blue"
+  ) + # adding aesthetics to the confidence intervals
+  theme_classic() +
+  labs(title = "Bar Graph of Means", subtitle = "High discounts (above 60%) are statistically different from lower disocunts in terms of revenue.", x = "Discount Level", y = "Mean Revenue")
+```
+
+**Results**
+
+- Our null hypothesis is that the mean revenue for discounts below 60% are the same as discounts higher than 60%.
+
+- The above test, shows that at a 95% confidence interval we can say that discounts equal to or higher than 60% are statistically different and bring in lower average revenue than discounts of lower percentages. 
+
+- This means that we reject the null hypothesis in favor of the alternative (discounts at or above 60% are different than discounts below 60%).
+
+### Profit ~ Discount Relationship || Pearson Correlation Test
+```{r}
+cor.test(officeMate$Profit, officeMate$Discount, method = c("pearson"))
+```
+
+**Comments**
+
+- Only wanting to show the negative relationship between discount and profit
+
+- Our correlation value of -0.219 shows there is a negative relationship 
+
+- Important to note that the profit variable has multiple drivers other than discount, for this reason, regression would not be appropriate here
+
+- A regression would cause omitted variable bias (Y = β + β1A versus Y = β + β1A + β2A)
+
+- See scatterplots in Detailed EDA for a visual breakdown of the relationship
+
+# Summary
+
+- In general, discounts lead to less profits 
+
+    - This is relative to the percentage of discounts, higher discounts lead to negative profits
+    
+- Certain products have high revenues that justify their discounts while others do not 
+
+    - Some furniture products have low revenues and low profits but high discounts 
+    - These types of products may need to be reevaulated 
+
+- Consumer segment dominate the revenues of cities
+
+    - NYC is more profitable than LA but segment does not play a large role in this 
+    
+- Higher count of discounts in the Central region may have contributed to the low profits compared to the South
+
+    - Important because the South generates less revenue but is more profitable 
+    
+- Our two findings on discounts and profit, and discounts and product revenue were found to be statistically significant 
+
+# Professional Visuals
+
+```{r message=FALSE}
+# Do discounts at higher rates bring in more customers and as a result more revenue?
+Discount_Factor <- as.factor(officeMate$Discount)
+
+officialMemoViz1 <- officeMate %>%
+  mutate(Discount_Factor = fct_recode(Discount_Factor, `0 - 30%` = "0", `0 - 30%` = "0.1", `0 - 30%` = "0.15", `0 - 30%` = "0.2", `0 - 30%` = "0.3", `30 - 50%` = "0.32", `30 - 50%` = "0.4", `30 - 50%` = "0.45", `30 - 50%` = "0.5", `51 - 80%` = "0.6", `51 - 80%` = "0.7", `51 - 80%` = "0.8")) %>% # refactoring discount levels for clarity
+  group_by(Revenue, Sub.Category, Discount_Factor, Discount) %>%
+  filter(Discount_Factor != "0 - 30%") %>% # filtering out 20% and lower
+  summarise(meanRev = mean(Revenue)) %>%
+  ggplot(mapping = aes(x = reorder(Sub.Category, Discount), y = meanRev / 1000, fill = Discount_Factor)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  labs(title = "Lower Discounts show higher Revenues ($)", subtitle = "Consider removing appliances due to low revenue and low profitability", x = "Subcategory", y = "Average Revenue (thousands)", fill = "Discount Percentages") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) +
+  scale_fill_manual(values = c("#00BFC4", "#F8766D"))
+
+officialMemoViz1
+```
+
+```{r officialMemoViz2}
+# Create second image for memo
+DiscProf2 <- officeMate %>%
+  mutate(Profits = ifelse(Profit >= 0, "Positive", "Negative")) %>% # creating legend, and refactoring profit
+  group_by(Discount) %>%
+  ggplot(mapping = aes(x = Discount, y = Profit / 100000, fill = Profits)) + # using median price
+  geom_bar(stat = "identity") +
+  geom_hline(yintercept = 0) +
+  theme_classic() +
+  labs(title = "Higher Discounts have lower Profits ($)", subtitle = "Profits decreases dramatically after 20% discount level", y = "Profit (hundred thousands)", x = "Discounts") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) +
+  guides(fill = guide_legend(reverse = TRUE))
+
+DiscProf1 <- officeMate %>%
+  select(Discount, Profit) %>%
+  mutate(Discounts = as.factor(ifelse(Discount > 0, "Yes", "No"))) %>% # creating legend, and refactoring discount
+  group_by(Discount, Profit) %>%
+  ggplot(mapping = aes(x = Discounts, y = Profit / 100000, fill = Discounts)) + # using median price
+  geom_col() +
+  geom_hline(yintercept = 0) + # adding a horizontal line to highlight breakeven point
+  theme_classic() +
+  labs(title = "Discounts decrease Profits ($)", subtitle = "Non-discounted profits are always positive", y = "Profit (hundred thousands)") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) +
+  scale_fill_manual(values = c("#00BFC4", "#F8766D"))
+
+officialMemoViz2 <- DiscProf1 / DiscProf2
+officialMemoViz2
+```
+
+```{r}
+# Save both images to jpg files.
+ggsave(filename = "plot1.jpg", plot = officialMemoViz1)
+ggsave(filename = "plot2.jpg", plot = officialMemoViz2)
+```
